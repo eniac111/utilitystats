@@ -15,6 +15,8 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 IMAP_SERVER = os.getenv("IMAP_SERVER")
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
+EMAIL_SOURCE_FOLDER = os.getenv("EMAIL_SOURCE_FOLDER", "INBOX")
+EMAIL_DESTINATION_FOLDER = os.getenv("EMAIL_DESTINATION_FOLDER", "Processed")
 NEXTCLOUD_URL = os.getenv("NEXTCLOUD_URL")
 NEXTCLOUD_USER = os.getenv("NEXTCLOUD_USER")
 NEXTCLOUD_PASS = os.getenv("NEXTCLOUD_PASS")
@@ -49,7 +51,7 @@ def fetch_latest_bill():
             client.login(EMAIL_USER, EMAIL_PASS)
             print("[INFO] Logged in to IMAP.")
 
-            client.select_folder("test")  # or "test"
+            client.select_folder(EMAIL_SOURCE_FOLDER)
             print("[INFO] Selected folder.")
 
             messages = client.search(['UNSEEN'], charset=None)
@@ -85,8 +87,8 @@ def fetch_latest_bill():
                             print("[ERROR] Attachment is not a valid PDF.")
                             continue
 
-                        client.move([uid], 'Processed')
-                        print(f"[INFO] Email moved to 'Processed'. PDF ready: {filename}")
+                        client.move([uid], EMAIL_DESTINATION_FOLDER)
+                        print(f"[INFO] Email moved to {EMAIL_DESTINATION_FOLDER}. PDF ready: {filename}")
 
                         return filename, io.BytesIO(pdf_bytes)
 
