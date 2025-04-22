@@ -1,0 +1,44 @@
+{
+  "title": "Electricity Usage by Electrohold bills",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Total kWh Used",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": "influxdb",
+      "targets": [
+        {
+          "query": "from(bucket: \"energy_data\")\n  |> range(start: -5y)\n  |> filter(fn: (r) => r._measurement == \"electricity_invoice\" and r._field == \"total_kwh\")",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Cost (BGN)",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": "influxdb",
+      "targets": [
+        {
+          "query": "from(bucket: \"energy_data\")\n  |> range(start: -5y)\n  |> filter(fn: (r) => r._measurement == \"electricity_invoice\" and r._field == \"total_cost_bgn\")",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Day vs Night Consumption",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+      "datasource": "influxdb",
+      "targets": [
+        {
+          "query": "from(bucket: \"energy_data\")\n  |> range(start: -5y)\n  |> filter(fn: (r) => r._measurement == \"electricity_invoice\" and (r._field == \"day_kwh\" or r._field == \"night_kwh\"))",
+          "refId": "C"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "1d"
+}
