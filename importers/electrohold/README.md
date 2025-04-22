@@ -66,6 +66,10 @@ podman run --rm \
 
 ```
 
+Secrets may also be passed via ENV variables or `--env-file`.
+
+The container may be executed periodicaly in a Crontab or a Kubernetes Cron Job.
+
 ## 📊 Visualizing in Grafana
 
 A sample dashboard is in the `../grafana_dashboards` directory.
