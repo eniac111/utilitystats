@@ -41,6 +41,7 @@ if CONFIG_FILE and os.path.isfile(CONFIG_FILE):
         INFLUXDB_ORG = config["electrohold"].get("INFLUXDB_ORG", INFLUXDB_ORG)
         INFLUXDB_BUCKET = config["electrohold"].get("INFLUXDB_BUCKET", INFLUXDB_BUCKET)
 
+
 def fetch_latest_bill():
     print("[INFO] Connecting to IMAP server...")
     try:
@@ -48,11 +49,11 @@ def fetch_latest_bill():
             client.login(EMAIL_USER, EMAIL_PASS)
             print("[INFO] Logged in to IMAP.")
 
-            client.select_folder("test")  # Or "INBOX" or another folder
+            client.select_folder("test")  # or "test"
             print("[INFO] Selected folder.")
 
             messages = client.search(['UNSEEN'], charset=None)
-            print(f"[INFO] Found {len(messages)} matching emails.")
+            print(f"[INFO] Found {len(messages)} unseen emails.")
 
             for uid in messages:
                 print(f"[INFO] Processing email UID: {uid}")
@@ -60,7 +61,7 @@ def fetch_latest_bill():
                 mail = mailparser.parse_from_bytes(msg_data)
 
                 subject = mail.subject or ""
-                if "Фактура" not in subject or "Електрохолд" not in subject:
+                if "Електрохолд Продажби - Фактура" not in subject:
                     print(f"[DEBUG] Skipping email with subject: {subject}")
                     continue
 
@@ -75,22 +76,21 @@ def fetch_latest_bill():
                             try:
                                 pdf_bytes = base64.b64decode(payload)
                             except Exception:
-                                print("[WARN] Attachment may not be base64. Trying utf-8 encoding fallback.")
+                                print("[WARN] Attachment may not be base64. Trying utf-8 fallback.")
                                 pdf_bytes = payload.encode("utf-8")
                         else:
                             pdf_bytes = payload
 
-                        # Sanity check for valid PDF
                         if not pdf_bytes.startswith(b'%PDF'):
                             print("[ERROR] Attachment is not a valid PDF.")
                             continue
 
                         client.move([uid], 'Processed')
-                        print(f"[INFO] Email moved. PDF ready: {filename}")
+                        print(f"[INFO] Email moved to 'Processed'. PDF ready: {filename}")
 
                         return filename, io.BytesIO(pdf_bytes)
 
-            print("[INFO] No matching PDF attachments found in unread emails.")
+            print("[INFO] No matching PDF attachments found.")
 
     except Exception as e:
         print(f"[ERROR] Failed to fetch bill: {e}")
