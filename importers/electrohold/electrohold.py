@@ -8,6 +8,7 @@ from datetime import datetime
 from imapclient import IMAPClient
 import mailparser
 import configparser
+from email.header import decode_header, make_header
 from influxdb_client import InfluxDBClient, Point, WriteOptions
 from influxdb_client.client.write_api import SYNCHRONOUS
 
@@ -44,8 +45,17 @@ if CONFIG_FILE and os.path.isfile(CONFIG_FILE):
         INFLUXDB_BUCKET = config["electrohold"].get("INFLUXDB_BUCKET", INFLUXDB_BUCKET)
 
 
-def fetch_latest_bill():
+def decode_mime_header(value):
+    try:
+        return str(make_header(decode_header(value)))
+    except Exception as e:
+        print(f"[WARN] Failed to decode header: {e}")
+        return str(value)
+
+def fetch_latest_bills():
     print("[INFO] Connecting to IMAP server...")
+    bills = []
+
     try:
         with IMAPClient(IMAP_SERVER, ssl=True) as client:
             client.login(EMAIL_USER, EMAIL_PASS)
@@ -62,42 +72,57 @@ def fetch_latest_bill():
                 msg_data = client.fetch([uid], ['RFC822'])[uid][b'RFC822']
                 mail = mailparser.parse_from_bytes(msg_data)
 
-                subject = mail.subject or ""
+                raw_subject = mail.headers.get("Subject", "")
+                if isinstance(raw_subject, (bytes, str)):
+                    subject = decode_mime_header(raw_subject)
+                else:
+                    print(f"[WARN] Unexpected Subject header type: {type(raw_subject)}. Skipping.")
+                    continue
+
                 if "Електрохолд Продажби - Фактура" not in subject:
                     print(f"[DEBUG] Skipping email with subject: {subject}")
                     continue
 
+                valid_pdf_found = False
+
                 for attachment in mail.attachments:
-                    print(f"[DEBUG] Found attachment: {attachment['filename']}")
-                    if attachment['mail_content_type'] == 'application/pdf':
-                        filename = attachment['filename']
-                        payload = attachment['payload']
+                    filename = attachment.get("filename")
+                    content_type = attachment.get("mail_content_type")
 
-                        # Decode base64 or fallback
-                        if isinstance(payload, str):
-                            try:
-                                pdf_bytes = base64.b64decode(payload)
-                            except Exception:
-                                print("[WARN] Attachment may not be base64. Trying utf-8 fallback.")
-                                pdf_bytes = payload.encode("utf-8")
-                        else:
-                            pdf_bytes = payload
+                    print(f"[DEBUG] Found attachment: {filename}")
 
-                        if not pdf_bytes.startswith(b'%PDF'):
-                            print("[ERROR] Attachment is not a valid PDF.")
+                    if content_type != "application/pdf":
+                        continue
+
+                    payload = attachment.get("payload")
+
+                    # Decode base64 or fallback
+                    if isinstance(payload, str):
+                        try:
+                            pdf_bytes = base64.b64decode(payload)
+                        except Exception:
+                            print("[WARN] Could not decode attachment as base64.")
                             continue
+                    else:
+                        pdf_bytes = payload
 
-                        client.move([uid], EMAIL_DESTINATION_FOLDER)
-                        print(f"[INFO] Email moved to {EMAIL_DESTINATION_FOLDER}. PDF ready: {filename}")
+                    if not pdf_bytes.startswith(b'%PDF'):
+                        print("[ERROR] Skipping invalid PDF:", filename)
+                        continue
 
-                        return filename, io.BytesIO(pdf_bytes)
+                    client.move([uid], EMAIL_DESTINATION_FOLDER)
+                    print(f"[INFO] Email moved to {EMAIL_DESTINATION_FOLDER}. PDF ready: {filename}")
 
-            print("[INFO] No matching PDF attachments found.")
+                    bills.append((filename, io.BytesIO(pdf_bytes)))
+                    valid_pdf_found = True
+
+                if not valid_pdf_found:
+                    print("[WARN] No valid PDF found in email UID:", uid)
 
     except Exception as e:
         print(f"[ERROR] Failed to fetch bill: {e}")
 
-    return None, None
+    return bills
 
 def upload_to_nextcloud(filename, pdf_data):
     url = f"{NEXTCLOUD_URL}/remote.php/dav/files/{NEXTCLOUD_USER}/{NEXTCLOUD_FILE_PATH}/{filename}"
@@ -152,17 +177,18 @@ def write_to_influx(data):
 
 
 if __name__ == "__main__":
-    filename, pdf_data = fetch_latest_bill()
+    bills = fetch_latest_bills()
 
-    if filename and pdf_data:
-        print(f"Processing: {filename}")
-        pdf_data.seek(0)
-        upload_to_nextcloud(filename, pdf_data.getvalue())
-
-        pdf_data.seek(0)
-        parsed_data = parse_pdf(pdf_data)
-
-        write_to_influx(parsed_data)
-        print("Successfully imported invoice to InfluxDB.")
-    else:
+    if not bills:
         print("No new invoice found.")
+    else:
+        for filename, pdf_data in bills:
+            print(f"Processing: {filename}")
+            pdf_data.seek(0)
+            upload_to_nextcloud(filename, pdf_data.getvalue())
+
+            pdf_data.seek(0)
+            parsed_data = parse_pdf(pdf_data)
+
+            write_to_influx(parsed_data)
+            print("Successfully imported invoice to InfluxDB.")
