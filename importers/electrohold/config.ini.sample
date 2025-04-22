@@ -1,0 +1,20 @@
+[electrohold]
+
+# IMAP Email Access
+IMAP_SERVER = imap.yourmailprovider.com
+EMAIL_USER = your-email@example.com
+EMAIL_PASS = your-email-password
+EMAIL_SOURCE_FOLDER = INBOX
+EMAIL_DESTINATION_FOLDER = Processed
+
+# Nextcloud WebDAV Settings
+NEXTCLOUD_URL = https://nextcloud.example.com
+NEXTCLOUD_USER = your-nextcloud-user
+NEXTCLOUD_PASS = your-nextcloud-password
+NEXTCLOUD_FILE_PATH = Invoices/Electricity
+
+# InfluxDB Settings
+INFLUXDB_URL = http://localhost:8086
+INFLUXDB_TOKEN = your-influxdb-api-token
+INFLUXDB_ORG = my-org
+INFLUXDB_BUCKET = energy_data
